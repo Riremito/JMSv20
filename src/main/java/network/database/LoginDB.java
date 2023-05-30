@@ -25,6 +25,9 @@ import common.user.CharacterData;
 import common.user.DBChar;
 import game.user.item.ItemInfo;
 import game.user.item.ItemVariationOption;
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -33,6 +36,8 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import login.user.ClientSocket;
 import login.user.item.Inventory;
 import util.Pointer;
@@ -43,6 +48,7 @@ import util.Pointer;
  * @author Eric
  */
 public class LoginDB {
+
     static final String[] DELETE_CHARACTER = {
         "character",
         "givepopularity",
@@ -73,6 +79,45 @@ public class LoginDB {
         return nameUsed;
     }
 
+    public static String GetSHA256(String str) {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+            byte[] result = digest.digest(str.getBytes());
+            return String.format("%064x", new BigInteger(1, result));
+        } catch (NoSuchAlgorithmException ex) {
+            ;
+        }
+        return null;
+    }
+
+    public static boolean autoRegister(String MapleID, String Password) {
+        String password1_hash = GetSHA256(Password); // test
+
+        if (password1_hash == null) {
+            return false;
+        }
+
+        try {
+            Connection con = Database.getDB().poolConnection();
+            PreparedStatement ps = con.prepareStatement("INSERT INTO `users` (LoginID, Password, GradeCode) VALUES (?, ?, ?);", Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, MapleID);
+            ps.setString(2, password1_hash);
+            ps.setInt(3, 0); // GM
+            ps.executeUpdate();
+
+            ResultSet rs = ps.getGeneratedKeys();
+            rs.next();
+            rs.close();
+            ps.close();
+            return true;
+        } catch (SQLException e) {
+            System.err.println("ERROR" + e);
+        }
+
+        return false;
+    }
+
     public static int rawCheckPassword(String id, String passwd, ClientSocket socket) {
         int retCode = 2; //DBFail
 
@@ -81,10 +126,10 @@ public class LoginDB {
                 ps.setString(1, id);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        char[] pass = rs.getString("Password").toCharArray();
-                        char[] inputtedPass = passwd.toCharArray();
-                        BCrypt.Result result = BCrypt.verifyer().verify(inputtedPass, pass);
-                        if (Arrays.equals(pass, inputtedPass) || result.verified || BCrypt.verifyer().verify(inputtedPass, OrionConfig.MASTER_PASSWORD).verified) {
+                        String password_hash = rs.getString("Password");
+
+                        String input_hash = GetSHA256(passwd);
+                        if (input_hash != null && input_hash.equals(password_hash)) {
                             int blockReason = rs.getByte("BlockReason");
                             if (blockReason > 0) {
                                 retCode = 5; //Blocked
