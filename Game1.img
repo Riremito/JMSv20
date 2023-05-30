@@ -1,7 +1,7 @@
 {
 	"port": 8686,
 	
-	"gameWorldId": 1,
+	"gameWorldId": 9,
 	"channelNo": 2,
 	
 	"PublicIP": "127.0.0.1",
@@ -14,6 +14,6 @@
 	"login": {
 		"ip": "127.0.0.1",
 		"port": 8383,
-		"worldName": "MapleMeme"
+		"worldName": "‚à‚Ý‚¶"
 	}
 }

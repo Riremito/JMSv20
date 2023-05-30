@@ -20,6 +20,7 @@ package login;
 import game.user.item.ItemInfo;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,8 +46,9 @@ import util.wz.WzUtil;
  * @author Eric
  */
 public class LoginApp {
+
     private static final LoginApp instance = new LoginApp();
-    
+
     private LoginAcceptor acceptor;
     private CenterAcceptor centerAcceptor;
     private ShopEntry shop;
@@ -61,7 +63,7 @@ public class LoginApp {
     private String addr;
     private int port;
     private int centerPort;
-    
+
     public LoginApp() {
         this.worlds = new ArrayList<>();
         this.newEquip = new ArrayList<>();
@@ -72,23 +74,23 @@ public class LoginApp {
         this.lockItemSN = new ReentrantLock();
         this.lockCashItemSN = new ReentrantLock();
     }
-    
+
     public final LoginAcceptor getAcceptor() {
         return acceptor;
     }
-    
+
     public final CenterAcceptor getCenterAcceptor() {
         return centerAcceptor;
     }
-    
+
     public static LoginApp getInstance() {
         return instance;
     }
-    
+
     public void addWorld(WorldEntry world) {
         this.worlds.add(world);
     }
-    
+
     public boolean checkCharEquip(int gender, int type, int itemID) {
         for (NewEquip equip : newEquip) {
             if (equip.getGender() == gender && equip.getType() == type && equip.getItemID() == itemID) {
@@ -97,19 +99,34 @@ public class LoginApp {
         }
         return false;
     }
-    
+
+    public static boolean isShiftJIS(String str) {
+        try {
+            byte[] tmp = new String(str).getBytes("MS932");
+            String chk_str = new String(tmp);
+
+            if (!str.equals(chk_str)) {
+                return false;
+            }
+
+            return true;
+        } catch (UnsupportedEncodingException ex) {
+            ;
+        }
+
+        return false;
+    }
+
     public boolean checkCharName(String charName, boolean wordCheck) {
         // Check if the name is null, empty, or has spaces
         if (charName == null || charName.isEmpty() || charName.contains(" ")) {
             return false;
         }
-        // Check if the name contains invalid symbols (excluding korean)
-        for (char c : charName.toCharArray()) {
-            if ((c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9')) {
-                if ((c & 0x80) == 0 || c < 176 || c > 200)
-                    return false;
-            }
+
+        if (!isShiftJIS(charName)) {
+            return false;
         }
+
         // Check if the name is forbidden
         if (wordCheck) {
             for (String forbiddenName : forbiddenNames) {
@@ -120,17 +137,17 @@ public class LoginApp {
         }
         return true;
     }
-    
+
     private void createAcceptor() {
         this.acceptor = new LoginAcceptor(new InetSocketAddress(addr, port));
         this.acceptor.start();
     }
-    
+
     private void createCenterAcceptor() {
         this.centerAcceptor = new CenterAcceptor(new InetSocketAddress(addr, centerPort));
         this.centerAcceptor.start();
     }
-    
+
     public WorldEntry getWorld(int worldID) {
         for (WorldEntry world : getWorlds()) {
             if (world.getWorldID() == worldID) {
@@ -139,11 +156,11 @@ public class LoginApp {
         }
         return null;
     }
-    
+
     public List<WorldEntry> getWorlds() {
         return worlds;
     }
-    
+
     public final long getNextCashSN() {
         lockCashItemSN.lock();
         try {
@@ -163,54 +180,54 @@ public class LoginApp {
             lockItemSN.unlock();
         }
     }
-    
+
     public long getServerStartTime() {
         return serverStartTime;
     }
-    
+
     public ShopEntry getShop() {
         return shop;
     }
-    
+
     private void initializeCenter() {
         try (JsonReader reader = Json.createReader(new FileReader("Login.img"))) {
             JsonObject loginData = reader.readObject();
-            
+
             this.port = loginData.getInt("port", 8484);
             this.centerPort = loginData.getInt("centerPort", 8383);
             this.addr = loginData.getString("PublicIP", "127.0.0.1");
-            
+
             Logger.logReport("Login configuration parsed successfully");
         } catch (FileNotFoundException ex) {
             ex.printStackTrace(System.err);
         }
     }
-    
+
     private void initializeDB() {
         try (JsonReader reader = Json.createReader(new FileReader("Database.img"))) {
             JsonObject dbData = reader.readObject();
-            
+
             int dbPort = dbData.getInt("dbPort", 3306);
             String dbName = dbData.getString("dbGameWorld", "orionalpha");
             String dbSource = dbData.getString("dbGameWorldSource", "127.0.0.1");
             String[] dbInfo = dbData.getString("dbGameWorldInfo", "root,").split(",");
-            
+
             // Construct the instance of the Database
             Database.createInstance(dbName, dbSource, dbInfo[0], dbInfo.length == 1 ? "" : dbInfo[1], dbPort);
-            
+
             // Load the initial instance of the Database
             Database.getDB().load();
-            
+
             Logger.logReport("DB configuration parsed successfully");
         } catch (FileNotFoundException ex) {
             ex.printStackTrace(System.err);
         }
     }
-    
+
     private void initializeItemSN() {
         CommonDB.rawLoadItemInitSN(-1, this.itemInitSN, this.cashItemInitSN);
     }
-    
+
     private void loadNewCharInfo() {
         WzPackage etcDir = new WzFileSystem().init("Etc").getPackage();
         if (etcDir != null) {
@@ -220,7 +237,7 @@ public class LoginApp {
                     this.forbiddenNames.add(WzUtil.getString(name, "-"));
                 }
             }
-            
+
             WzProperty makeChar = etcDir.getItem("MakeCharInfo.img");
             if (makeChar != null) {
                 for (WzProperty makeGender : makeChar.getChildNodes()) {
@@ -232,16 +249,16 @@ public class LoginApp {
                     }
                 }
             }
-            
+
             etcDir.release();
         }
         etcDir = null;
     }
-    
+
     public static void main(String[] args) {
         LoginApp.getInstance().start();
     }
-    
+
     public void start() {
         try {
             Logger.logReport("MapleStory Japan Service WvsLogin.exe.");
@@ -252,11 +269,11 @@ public class LoginApp {
             System.exit(0);
         }
     }
-    
+
     public void setShop(ShopEntry shop) {
         this.shop = shop;
     }
-    
+
     public void setUp() {
         loadNewCharInfo();
         initializeDB();
@@ -264,11 +281,11 @@ public class LoginApp {
         initializeCenter();
         createAcceptor();
         createCenterAcceptor();
-        
+
         ItemInfo.load();
         // CreateTimerThread
     }
-    
+
     public void updateItemInitSN() {
         CommonDB.rawUpdateItemInitSN(-1, this.itemInitSN, this.cashItemInitSN);
     }
