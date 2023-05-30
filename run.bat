@@ -1,0 +1,4 @@
+start launch_login
+start launch_game0
+start launch_game1
+start launch_shop

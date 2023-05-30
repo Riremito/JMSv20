@@ -32,7 +32,7 @@ import util.Utilities;
  */
 public class OutPacket {
     private static final int DEFAULT_BUFFER_ALLOC = 0x100;
-    private static final Charset OUT_ENCODING = Charset.forName("MS949");
+    private static final Charset OUT_ENCODING = Charset.forName("MS932");
     
     private final ByteBuf sendBuff;
     

@@ -32,7 +32,7 @@ import util.Utilities;
  */
 public class InPacket {
     private static final int BLOCK_SIZE = 0x10000;
-    private static final Charset IN_ENCODING = Charset.forName("MS949");
+    private static final Charset IN_ENCODING = Charset.forName("MS932");
     
     private final ByteBuf recvBuff;
     private int state;
